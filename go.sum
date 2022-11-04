@@ -1,0 +1,8 @@
+github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
+github.com/fantasy9830/go-graceful v1.0.0 h1:8w3IAEVD6Zl0Wv8/HP4O8F9vuvBjR8nZLg/x79jpJk8=
+github.com/fantasy9830/go-graceful v1.0.0/go.mod h1:9rpP4oWsF5DP5lELwOQ02ljSV6OnhgPk3+oEsrgPJWw=
+github.com/fantasy9830/go-retry v1.0.0 h1:GsNbqVJNALQ8tXU0TFp6jvHDKOper3rjdNF4g+F3AQo=
+github.com/fantasy9830/go-retry v1.0.0/go.mod h1:KCkRX3DznEqWneVXAASq9UvprszE2zNNHuytA9IsGtk=
+github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
+github.com/stretchr/testify v1.8.0 h1:pSgiaMZlXftHpm5L7V1+rVB+AZJydKsMxsQBIJw4PKk=
+gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
