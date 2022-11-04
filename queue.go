@@ -95,10 +95,7 @@ func (q *Queue) AddJob(taskFunc func(context.Context) error, optFuncs ...func(*J
 
 	job := NewJob(taskFunc, optFuncs...)
 
-	select {
-	case q.jobChan <- job:
-	default:
-	}
+	q.jobChan <- job
 
 	return nil
 }
