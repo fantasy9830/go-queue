@@ -36,8 +36,8 @@ func NewQueue(optFuncs ...OptionFunc) *Queue {
 		graceful:   graceful.NewManager(graceful.WithContext(opt.ctx)),
 	}
 
-	q.graceful.Go(q.Start)
-	q.graceful.RegisterOnShutdown(q.OnShutdown)
+	q.graceful.Go(q.start)
+	q.graceful.RegisterOnShutdown(q.onShutdown)
 	q.graceful.RegisterOnShutdown(q.dispatcher.OnShutdown)
 
 	go func() {
@@ -48,7 +48,23 @@ func NewQueue(optFuncs ...OptionFunc) *Queue {
 	return q
 }
 
-func (q *Queue) Start(ctx context.Context) {
+func (q *Queue) Done() <-chan struct{} {
+	return q.ctx.Done()
+}
+
+func (q *Queue) AddJob(taskFunc func(context.Context) error, optFuncs ...func(*Job)) error {
+	if q.shuttingDown() {
+		return errors.New("queue has been closed and released")
+	}
+
+	job := NewJob(taskFunc, optFuncs...)
+
+	q.jobChan <- job
+
+	return nil
+}
+
+func (q *Queue) start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -84,23 +100,7 @@ func (q *Queue) Start(ctx context.Context) {
 	}
 }
 
-func (q *Queue) Done() <-chan struct{} {
-	return q.ctx.Done()
-}
-
-func (q *Queue) AddJob(taskFunc func(context.Context) error, optFuncs ...func(*Job)) error {
-	if q.shuttingDown() {
-		return errors.New("queue has been closed and released")
-	}
-
-	job := NewJob(taskFunc, optFuncs...)
-
-	q.jobChan <- job
-
-	return nil
-}
-
-func (q *Queue) OnShutdown() {
+func (q *Queue) onShutdown() {
 	q.once.Do(func() {
 		q.setShuttingDown()
 		close(q.jobChan)
