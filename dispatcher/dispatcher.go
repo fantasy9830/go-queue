@@ -13,7 +13,7 @@ type IDispatcher interface {
 	GetMaxWorkers() uint64
 	Dispatch()
 	WaitReady() <-chan struct{}
-	OnShutdown()
+	OnShutdown() error
 }
 
 type Dispatcher struct {
@@ -82,11 +82,13 @@ func (d *Dispatcher) WaitReady() <-chan struct{} {
 	return d.ready
 }
 
-func (d *Dispatcher) OnShutdown() {
+func (d *Dispatcher) OnShutdown() error {
 	d.once.Do(func() {
 		d.setShuttingDown()
 		close(d.ready)
 	})
+
+	return nil
 }
 
 func (d *Dispatcher) shuttingDown() bool {

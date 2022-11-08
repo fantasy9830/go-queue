@@ -20,6 +20,12 @@ func WithMaxWorkers(maxCount uint64)
 ```go
 q := queue.NewQueue()
 
+go func() {
+    for err := range q.Errors() {
+        log.Printf("error: %s\n", err.Error())
+    }
+}()
+
 q.AddJob(func(ctx context.Context) error {
     log.Print("job 001")
     time.Sleep(3 * time.Second)
@@ -37,7 +43,7 @@ q.AddJob(func(ctx context.Context) error {
 q.AddJob(func(ctx context.Context) error {
     log.Print("job 003 default retry")
     return errors.New("job 003 finish")
-})
+}, queue.MaxRetries(1), queue.WithBackoff(queue.BackoffLinear(0*time.Second)))
 
 time.Sleep(1 * time.Second)
 

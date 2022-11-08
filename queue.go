@@ -3,7 +3,6 @@ package queue
 import (
 	"context"
 	"errors"
-	"log"
 	"sync"
 	"sync/atomic"
 
@@ -16,7 +15,6 @@ type Queue struct {
 	inShutdown atomic.Bool
 	once       sync.Once
 	ctx        context.Context
-	cancel     context.CancelFunc
 	jobChan    chan Job
 	dispatcher dispatcher.IDispatcher
 	graceful   graceful.GracefulManager
@@ -30,7 +28,6 @@ func NewQueue(optFuncs ...OptionFunc) *Queue {
 
 	q := &Queue{
 		ctx:        opt.ctx,
-		cancel:     opt.cancel,
 		jobChan:    make(chan Job, opt.queueSize),
 		dispatcher: dispatcher.NewDispatcher(dispatcher.WithMaxWorkers(opt.maxWorkers)),
 		graceful:   graceful.NewManager(graceful.WithContext(opt.ctx)),
@@ -40,16 +37,15 @@ func NewQueue(optFuncs ...OptionFunc) *Queue {
 	q.graceful.RegisterOnShutdown(q.onShutdown)
 	q.graceful.RegisterOnShutdown(q.dispatcher.OnShutdown)
 
-	go func() {
-		<-q.graceful.Done()
-		opt.cancel()
-	}()
-
 	return q
 }
 
 func (q *Queue) Done() <-chan struct{} {
-	return q.ctx.Done()
+	return q.graceful.Done()
+}
+
+func (q *Queue) Errors() <-chan error {
+	return q.graceful.Errors()
 }
 
 func (q *Queue) AddJob(taskFunc func(context.Context) error, optFuncs ...func(*Job)) error {
@@ -64,23 +60,26 @@ func (q *Queue) AddJob(taskFunc func(context.Context) error, optFuncs ...func(*J
 	return nil
 }
 
-func (q *Queue) start(ctx context.Context) {
+func (q *Queue) start(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		default:
 			q.dispatcher.Dispatch()
 
-			<-q.dispatcher.WaitReady()
+			_, ok := <-q.dispatcher.WaitReady()
+			if !ok {
+				return nil
+			}
 
 			job, ok := <-q.jobChan
 			if !ok {
-				return
+				return nil
 			}
 
 			q.dispatcher.IncWorker()
-			q.graceful.Go(func(ctx context.Context) {
+			q.graceful.Go(func(ctx context.Context) error {
 				defer func() {
 					q.dispatcher.DecWorker()
 					q.dispatcher.Dispatch()
@@ -92,19 +91,19 @@ func (q *Queue) start(ctx context.Context) {
 					retry.WithBackoff(job.backoffFunc),
 				}
 
-				if err := retry.Do(job.TaskFunc, opt...); err != nil {
-					log.Print(err.Error())
-				}
+				return retry.Do(job.TaskFunc, opt...)
 			})
 		}
 	}
 }
 
-func (q *Queue) onShutdown() {
+func (q *Queue) onShutdown() error {
 	q.once.Do(func() {
 		q.setShuttingDown()
 		close(q.jobChan)
 	})
+
+	return nil
 }
 
 func (q *Queue) shuttingDown() bool {
