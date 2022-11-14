@@ -5,7 +5,6 @@ go 1.19
 require (
 	github.com/fantasy9830/go-graceful v1.0.2
 	github.com/fantasy9830/go-retry v1.0.2
-	github.com/golang/mock v1.6.0
 	github.com/stretchr/testify v1.8.1
 )
 

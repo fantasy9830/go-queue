@@ -14,10 +14,10 @@ import (
 type Queue struct {
 	inShutdown atomic.Bool
 	once       sync.Once
-	ctx        context.Context
 	jobChan    chan Job
 	dispatcher dispatcher.IDispatcher
 	graceful   graceful.GracefulManager
+	quit       chan struct{}
 }
 
 func NewQueue(optFuncs ...OptionFunc) *Queue {
@@ -27,8 +27,8 @@ func NewQueue(optFuncs ...OptionFunc) *Queue {
 	}
 
 	q := &Queue{
-		ctx:        opt.ctx,
 		jobChan:    make(chan Job, opt.queueSize),
+		quit:       make(chan struct{}, 1),
 		dispatcher: dispatcher.NewDispatcher(dispatcher.WithMaxWorkers(opt.maxWorkers)),
 		graceful:   graceful.NewManager(graceful.WithContext(opt.ctx)),
 	}
@@ -55,7 +55,11 @@ func (q *Queue) AddJob(taskFunc func(context.Context) error, optFuncs ...func(*J
 
 	job := NewJob(taskFunc, optFuncs...)
 
-	q.jobChan <- job
+	select {
+	case <-q.quit:
+		return nil
+	case q.jobChan <- job:
+	}
 
 	return nil
 }
@@ -68,31 +72,39 @@ func (q *Queue) start(ctx context.Context) error {
 		default:
 			q.dispatcher.Dispatch()
 
-			_, ok := <-q.dispatcher.WaitReady()
-			if !ok {
+			select {
+			case <-q.quit:
 				return nil
+			case _, ok := <-q.dispatcher.WaitReady():
+				if !ok {
+					return nil
+				}
 			}
 
-			job, ok := <-q.jobChan
-			if !ok {
+			select {
+			case <-q.quit:
 				return nil
-			}
-
-			q.dispatcher.IncWorker()
-			q.graceful.Go(func(ctx context.Context) error {
-				defer func() {
-					q.dispatcher.DecWorker()
-					q.dispatcher.Dispatch()
-				}()
-
-				opt := []retry.OptionFunc{
-					retry.WithContext(ctx),
-					retry.MaxRetries(job.maxRetries),
-					retry.WithBackoff(job.backoffFunc),
+			case job, ok := <-q.jobChan:
+				if !ok {
+					return nil
 				}
 
-				return retry.Do(job.TaskFunc, opt...)
-			})
+				q.dispatcher.IncWorker()
+				q.graceful.Go(func(ctx context.Context) error {
+					defer func() {
+						q.dispatcher.DecWorker()
+						q.dispatcher.Dispatch()
+					}()
+
+					opt := []retry.OptionFunc{
+						retry.WithContext(ctx),
+						retry.MaxRetries(job.maxRetries),
+						retry.WithBackoff(job.backoffFunc),
+					}
+
+					return retry.Do(job.TaskFunc, opt...)
+				})
+			}
 		}
 	}
 }
@@ -100,7 +112,8 @@ func (q *Queue) start(ctx context.Context) error {
 func (q *Queue) onShutdown() error {
 	q.once.Do(func() {
 		q.setShuttingDown()
-		close(q.jobChan)
+		q.quit <- struct{}{}
+		close(q.quit)
 	})
 
 	return nil

@@ -85,7 +85,7 @@ func (d *Dispatcher) WaitReady() <-chan struct{} {
 func (d *Dispatcher) OnShutdown() error {
 	d.once.Do(func() {
 		d.setShuttingDown()
-		close(d.ready)
+		// close(d.ready)
 	})
 
 	return nil
