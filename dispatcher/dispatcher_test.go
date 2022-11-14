@@ -73,7 +73,9 @@ func (s *Suit) TestDispatch() {
 		assert.EqualValues(s.T(), d.GetMaxWorkers(), d.GetWorkerCount())
 	}
 
-	d.OnShutdown()
+	err := d.OnShutdown()
+	assert.NoError(s.T(), err)
+
 	d.Dispatch()
 	select {
 	case ready, ok := <-d.WaitReady():

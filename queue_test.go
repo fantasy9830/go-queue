@@ -83,11 +83,12 @@ func (s *Suit) TestInShuttingDown() {
 		queue.WithContext(parent),
 	}
 	q := queue.NewQueue(opts...)
-	q.AddJob(func(ctx context.Context) error {
+	err := q.AddJob(func(ctx context.Context) error {
 		time.Sleep(100 * time.Millisecond)
 		count.Add(1)
 		return nil
 	})
+	assert.NoError(s.T(), err)
 
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -96,16 +97,19 @@ func (s *Suit) TestInShuttingDown() {
 
 	go func() {
 		time.Sleep(100 * time.Millisecond)
-		q.AddJob(func(ctx context.Context) error {
+		err := q.AddJob(func(ctx context.Context) error {
 			time.Sleep(100 * time.Millisecond)
 			count.Add(1)
 			return nil
 		})
-		q.AddJob(func(ctx context.Context) error {
+		assert.Equal(s.T(), "queue has been closed and released", err.Error())
+
+		err = q.AddJob(func(ctx context.Context) error {
 			time.Sleep(100 * time.Millisecond)
 			count.Add(1)
 			return nil
 		})
+		assert.Equal(s.T(), "queue has been closed and released", err.Error())
 	}()
 
 	<-q.Done()
@@ -124,11 +128,14 @@ func (s *Suit) TestAfterShuttingDown() {
 	q := queue.NewQueue(opts...)
 	cancel()
 
-	q.AddJob(func(ctx context.Context) error {
+	time.Sleep(100 * time.Millisecond)
+
+	err := q.AddJob(func(ctx context.Context) error {
 		time.Sleep(100 * time.Millisecond)
 		count.Add(1)
 		return nil
 	})
+	assert.Equal(s.T(), "queue has been closed and released", err.Error())
 
 	<-q.Done()
 
