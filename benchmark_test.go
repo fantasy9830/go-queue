@@ -7,7 +7,7 @@ import (
 	"github.com/fantasy9830/go-queue"
 )
 
-func BenchmarkQueueTask(b *testing.B) {
+func BenchmarkQueueJob(b *testing.B) {
 	b.ReportAllocs()
 	q := queue.NewQueue()
 	for n := 0; n < b.N; n++ {
