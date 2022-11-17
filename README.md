@@ -1,5 +1,10 @@
 # go-queue
 
+## Installation
+```shell
+go get github.com/fantasy9830/go-queue
+```
+
 ## Usage
 ### func WithContext
 ```go
