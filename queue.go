@@ -86,9 +86,7 @@ func (q *Queue) start(ctx context.Context) error {
 
 func (q *Queue) onShutdown() error {
 	q.setShuttingDown()
-	q.dispatcher.OnShutdown()
-
-	return nil
+	return q.dispatcher.OnShutdown()
 }
 
 func (q *Queue) shuttingDown() bool {
