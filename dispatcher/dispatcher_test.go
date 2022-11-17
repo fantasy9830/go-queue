@@ -72,15 +72,4 @@ func (s *Suit) TestDispatch() {
 	default:
 		assert.EqualValues(s.T(), d.GetMaxWorkers(), d.GetWorkerCount())
 	}
-
-	err := d.OnShutdown()
-	assert.NoError(s.T(), err)
-
-	d.Dispatch()
-	select {
-	case ready, ok := <-d.WaitReady():
-		assert.Equal(s.T(), false, ok)
-		assert.Equal(s.T(), struct{}{}, ready)
-	default:
-	}
 }

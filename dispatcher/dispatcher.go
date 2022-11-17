@@ -12,11 +12,9 @@ type IDispatcher interface {
 	GetMaxWorkers() uint64
 	Dispatch()
 	WaitReady() <-chan struct{}
-	OnShutdown() error
 }
 
 type Dispatcher struct {
-	inShutdown  atomic.Bool
 	maxWorkers  atomic.Uint64
 	workerCount atomic.Uint64
 	ready       chan struct{}
@@ -62,10 +60,6 @@ func (d *Dispatcher) GetMaxWorkers() uint64 {
 }
 
 func (d *Dispatcher) Dispatch() {
-	if d.shuttingDown() {
-		return
-	}
-
 	if d.GetWorkerCount() >= d.GetMaxWorkers() {
 		return
 	}
@@ -78,18 +72,4 @@ func (d *Dispatcher) Dispatch() {
 
 func (d *Dispatcher) WaitReady() <-chan struct{} {
 	return d.ready
-}
-
-func (d *Dispatcher) OnShutdown() error {
-	d.setShuttingDown()
-
-	return nil
-}
-
-func (d *Dispatcher) shuttingDown() bool {
-	return d.inShutdown.Load()
-}
-
-func (d *Dispatcher) setShuttingDown() {
-	d.inShutdown.Store(true)
 }
