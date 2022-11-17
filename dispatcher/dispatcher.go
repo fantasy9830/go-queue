@@ -1,7 +1,6 @@
 package dispatcher
 
 import (
-	"sync"
 	"sync/atomic"
 )
 
@@ -17,7 +16,6 @@ type IDispatcher interface {
 }
 
 type Dispatcher struct {
-	once        sync.Once
 	inShutdown  atomic.Bool
 	maxWorkers  atomic.Uint64
 	workerCount atomic.Uint64
@@ -83,10 +81,7 @@ func (d *Dispatcher) WaitReady() <-chan struct{} {
 }
 
 func (d *Dispatcher) OnShutdown() error {
-	d.once.Do(func() {
-		d.setShuttingDown()
-		// close(d.ready)
-	})
+	d.setShuttingDown()
 
 	return nil
 }

@@ -3,7 +3,6 @@ package queue
 import (
 	"context"
 	"errors"
-	"sync"
 	"sync/atomic"
 
 	"github.com/fantasy9830/go-graceful"
@@ -13,11 +12,9 @@ import (
 
 type Queue struct {
 	inShutdown atomic.Bool
-	once       sync.Once
 	jobChan    chan Job
 	dispatcher dispatcher.IDispatcher
 	graceful   graceful.GracefulManager
-	quit       chan struct{}
 }
 
 func NewQueue(optFuncs ...OptionFunc) *Queue {
@@ -28,14 +25,12 @@ func NewQueue(optFuncs ...OptionFunc) *Queue {
 
 	q := &Queue{
 		jobChan:    make(chan Job, opt.queueSize),
-		quit:       make(chan struct{}, 1),
 		dispatcher: dispatcher.NewDispatcher(dispatcher.WithMaxWorkers(opt.maxWorkers)),
 		graceful:   graceful.NewManager(graceful.WithContext(opt.ctx)),
 	}
 
 	q.graceful.Go(q.start)
 	q.graceful.RegisterOnShutdown(q.onShutdown)
-	q.graceful.RegisterOnShutdown(q.dispatcher.OnShutdown)
 
 	return q
 }
@@ -55,66 +50,43 @@ func (q *Queue) AddJob(taskFunc func(context.Context) error, optFuncs ...func(*J
 
 	job := NewJob(taskFunc, optFuncs...)
 
-	select {
-	case <-q.quit:
-		return nil
-	case q.jobChan <- job:
-	}
+	q.jobChan <- job
 
 	return nil
 }
 
 func (q *Queue) start(ctx context.Context) error {
 	for {
+		q.dispatcher.Dispatch()
+
+		<-q.dispatcher.WaitReady()
+
 		select {
 		case <-ctx.Done():
 			return nil
-		default:
-			q.dispatcher.Dispatch()
+		case job := <-q.jobChan:
+			q.dispatcher.IncWorker()
+			q.graceful.Go(func(ctx context.Context) error {
+				defer func() {
+					q.dispatcher.DecWorker()
+					q.dispatcher.Dispatch()
+				}()
 
-			select {
-			case <-q.quit:
-				return nil
-			case _, ok := <-q.dispatcher.WaitReady():
-				if !ok {
-					return nil
-				}
-			}
-
-			select {
-			case <-q.quit:
-				return nil
-			case job, ok := <-q.jobChan:
-				if !ok {
-					return nil
+				opt := []retry.OptionFunc{
+					retry.WithContext(ctx),
+					retry.MaxRetries(job.maxRetries),
+					retry.WithBackoff(job.backoffFunc),
 				}
 
-				q.dispatcher.IncWorker()
-				q.graceful.Go(func(ctx context.Context) error {
-					defer func() {
-						q.dispatcher.DecWorker()
-						q.dispatcher.Dispatch()
-					}()
-
-					opt := []retry.OptionFunc{
-						retry.WithContext(ctx),
-						retry.MaxRetries(job.maxRetries),
-						retry.WithBackoff(job.backoffFunc),
-					}
-
-					return retry.Do(job.TaskFunc, opt...)
-				})
-			}
+				return retry.Do(job.TaskFunc, opt...)
+			})
 		}
 	}
 }
 
 func (q *Queue) onShutdown() error {
-	q.once.Do(func() {
-		q.setShuttingDown()
-		q.quit <- struct{}{}
-		close(q.quit)
-	})
+	q.setShuttingDown()
+	q.dispatcher.OnShutdown()
 
 	return nil
 }
