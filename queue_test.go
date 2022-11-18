@@ -155,14 +155,6 @@ func (s *Suit) TestWithMaxCapacity() {
 	q := queue.NewQueue(opts...)
 
 	err := q.AddJob(func(ctx context.Context) error {
-		time.Sleep(100 * time.Millisecond)
-		count.Add(1)
-		return nil
-	})
-	assert.Equal(s.T(), "max capacity reached", err.Error())
-
-	err = q.AddJob(func(ctx context.Context) error {
-		time.Sleep(100 * time.Millisecond)
 		count.Add(1)
 		return nil
 	})
