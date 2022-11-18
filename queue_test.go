@@ -81,6 +81,7 @@ func (s *Suit) TestInShuttingDown() {
 
 	opts := []queue.OptionFunc{
 		queue.WithContext(parent),
+		queue.WithBlocking(true),
 	}
 	q := queue.NewQueue(opts...)
 	err := q.AddJob(func(ctx context.Context) error {
@@ -136,6 +137,38 @@ func (s *Suit) TestAfterShuttingDown() {
 		return nil
 	})
 	assert.Equal(s.T(), "queue has been closed and released", err.Error())
+
+	<-q.Done()
+
+	assert.Equal(s.T(), int32(0), count.Load())
+}
+
+func (s *Suit) TestWithMaxCapacity() {
+	var count atomic.Int32
+
+	parent, cancel := context.WithCancel(context.Background())
+
+	opts := []queue.OptionFunc{
+		queue.WithContext(parent),
+		queue.WithQueueSize(0),
+	}
+	q := queue.NewQueue(opts...)
+
+	err := q.AddJob(func(ctx context.Context) error {
+		time.Sleep(100 * time.Millisecond)
+		count.Add(1)
+		return nil
+	})
+	assert.Equal(s.T(), "max capacity reached", err.Error())
+
+	err = q.AddJob(func(ctx context.Context) error {
+		time.Sleep(100 * time.Millisecond)
+		count.Add(1)
+		return nil
+	})
+	assert.Equal(s.T(), "max capacity reached", err.Error())
+
+	cancel()
 
 	<-q.Done()
 

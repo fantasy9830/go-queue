@@ -21,6 +21,12 @@ func WithQueueSize(size uint64)
 func WithMaxWorkers(maxCount uint64)
 ```
 
+### func WithBlocking
+```go
+// Blocking AddJob or Non-blocking AddJob
+func WithBlocking(blocking bool)
+```
+
 ## examples
 ```go
 q := queue.NewQueue()

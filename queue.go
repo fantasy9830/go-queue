@@ -15,6 +15,7 @@ type Queue struct {
 	jobChan    chan Job
 	dispatcher dispatcher.IDispatcher
 	graceful   graceful.GracefulManager
+	blocking   bool
 }
 
 func NewQueue(optFuncs ...OptionFunc) *Queue {
@@ -27,6 +28,7 @@ func NewQueue(optFuncs ...OptionFunc) *Queue {
 		jobChan:    make(chan Job, opt.queueSize),
 		dispatcher: dispatcher.NewDispatcher(dispatcher.WithMaxWorkers(opt.maxWorkers)),
 		graceful:   graceful.NewManager(graceful.WithContext(opt.ctx)),
+		blocking:   opt.blocking,
 	}
 
 	q.graceful.Go(q.start)
@@ -50,16 +52,28 @@ func (q *Queue) AddJob(taskFunc func(context.Context) error, optFuncs ...func(*J
 
 	job := NewJob(taskFunc, optFuncs...)
 
-	q.jobChan <- job
+	if q.blocking {
+		q.jobChan <- job
+		return nil
+	}
 
-	return nil
+	select {
+	case q.jobChan <- job:
+		return nil
+	default:
+		return errors.New("max capacity reached")
+	}
 }
 
 func (q *Queue) start(ctx context.Context) error {
 	for {
 		q.dispatcher.Dispatch()
 
-		<-q.dispatcher.WaitReady()
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-q.dispatcher.WaitReady():
+		}
 
 		select {
 		case <-ctx.Done():

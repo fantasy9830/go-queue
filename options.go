@@ -11,6 +11,7 @@ type Options struct {
 	ctx        context.Context
 	queueSize  uint64
 	maxWorkers uint64
+	blocking   bool
 }
 
 func DefaultOption() *Options {
@@ -36,5 +37,11 @@ func WithQueueSize(size uint64) OptionFunc {
 func WithMaxWorkers(maxCount uint64) OptionFunc {
 	return func(opt *Options) {
 		opt.maxWorkers = maxCount
+	}
+}
+
+func WithBlocking(blocking bool) OptionFunc {
+	return func(opt *Options) {
+		opt.blocking = blocking
 	}
 }

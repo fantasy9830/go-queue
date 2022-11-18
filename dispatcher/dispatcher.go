@@ -1,6 +1,7 @@
 package dispatcher
 
 import (
+	"sync"
 	"sync/atomic"
 )
 
@@ -15,6 +16,7 @@ type IDispatcher interface {
 }
 
 type Dispatcher struct {
+	mu          sync.Mutex
 	maxWorkers  atomic.Uint64
 	workerCount atomic.Uint64
 	ready       chan struct{}
@@ -60,6 +62,9 @@ func (d *Dispatcher) GetMaxWorkers() uint64 {
 }
 
 func (d *Dispatcher) Dispatch() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	if d.GetWorkerCount() >= d.GetMaxWorkers() {
 		return
 	}
